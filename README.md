@@ -1,6 +1,6 @@
 # 🚀 Enterprise Crypto Trading Platform
 
-[![CI/CD](https://github.com/your-org/enterprise-crypto-platform/workflows/CI/badge.svg)](https://github.com/your-org/enterprise-crypto-platform/actions)
+[![CI/CD](https://github.com/ryanalmb/enterprise-crypto-platform/workflows/CI/badge.svg)](https://github.com/ryanalmb/enterprise-crypto-platform/actions)
 [![Security](https://img.shields.io/badge/security-enterprise-green.svg)](./SECURITY_COMPLIANCE.md)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
@@ -36,7 +36,7 @@ Enterprise-grade, multi-chain cryptocurrency trading platform with Telegram bot 
 ### Installation
 ```bash
 # Clone repository
-git clone https://github.com/your-org/enterprise-crypto-platform.git
+git clone https://github.com/ryanalmb/enterprise-crypto-platform.git
 cd enterprise-crypto-platform
 
 # Install dependencies

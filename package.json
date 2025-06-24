@@ -67,12 +67,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/enterprise-crypto-platform.git"
+    "url": "https://github.com/ryanalmb/enterprise-crypto-platform.git"
   },
   "bugs": {
-    "url": "https://github.com/your-org/enterprise-crypto-platform/issues"
+    "url": "https://github.com/ryanalmb/enterprise-crypto-platform/issues"
   },
-  "homepage": "https://github.com/your-org/enterprise-crypto-platform#readme",
+  "homepage": "https://github.com/ryanalmb/enterprise-crypto-platform#readme",
   "devDependencies": {
     "@types/jest": "^29.5.8",
     "@types/node": "^20.9.0",

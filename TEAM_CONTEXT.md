@@ -142,7 +142,7 @@
 ### Day 1: Environment Setup
 1. **Clone Repository**
    ```bash
-   git clone https://github.com/your-org/enterprise-crypto-platform.git
+   git clone https://github.com/ryanalmb/enterprise-crypto-platform.git
    cd enterprise-crypto-platform
    ```
 
