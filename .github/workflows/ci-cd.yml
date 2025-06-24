@@ -1,0 +1,415 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.11'
+  AWS_REGION: us-east-1
+
+jobs:
+  # =============================================================================
+  # CODE QUALITY AND SECURITY
+  # =============================================================================
+  lint-and-security:
+    name: Lint & Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Prettier check
+        run: npx prettier --check "**/*.{ts,tsx,js,jsx,json,md}"
+
+      - name: TypeScript type check
+        run: npm run type-check
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+      - name: Snyk security scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+      - name: Detect secrets
+        uses: Yelp/detect-secrets-action@v1.4.0
+        with:
+          args: '--baseline .secrets.baseline'
+
+  # =============================================================================
+  # UNIT TESTS
+  # =============================================================================
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [telegram-bot, web-app, trading-engine, blockchain-service, user-management]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: cd services/${{ matrix.service }} && npm test -- --coverage --watchAll=false
+        env:
+          NODE_ENV: test
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./services/${{ matrix.service }}/coverage/lcov.info
+          flags: ${{ matrix.service }}
+          name: ${{ matrix.service }}-coverage
+
+  # =============================================================================
+  # INTEGRATION TESTS
+  # =============================================================================
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run database migrations
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+
+  # =============================================================================
+  # BUILD AND DOCKER
+  # =============================================================================
+  build:
+    name: Build Services
+    runs-on: ubuntu-latest
+    needs: [lint-and-security, unit-tests]
+    strategy:
+      matrix:
+        service: [telegram-bot, web-app, trading-engine, ml-analytics, blockchain-service, user-management, data-pipeline, community-platform]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build service
+        run: cd services/${{ matrix.service }} && npm run build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/${{ matrix.service }}
+          push: false
+          tags: ${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # =============================================================================
+  # END-TO-END TESTS
+  # =============================================================================
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+
+      - name: Start services
+        run: docker-compose up -d
+        env:
+          NODE_ENV: test
+
+      - name: Wait for services
+        run: |
+          timeout 300 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 5; done'
+          timeout 300 bash -c 'until curl -f http://localhost:3002/health; do sleep 5; done'
+
+      - name: Run E2E tests
+        run: npx playwright test
+        env:
+          BASE_URL: http://localhost:3000
+
+      - name: Upload E2E test results
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: e2e-test-results
+          path: |
+            test-results/
+            playwright-report/
+
+      - name: Stop services
+        run: docker-compose down
+
+  # =============================================================================
+  # LOAD TESTS
+  # =============================================================================
+  load-tests:
+    name: Load Tests
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Artillery
+        run: npm install -g artillery@latest
+
+      - name: Start services
+        run: docker-compose up -d
+        env:
+          NODE_ENV: production
+
+      - name: Wait for services
+        run: |
+          timeout 300 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 5; done'
+
+      - name: Run load tests
+        run: npm run test:load
+
+      - name: Upload load test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: load-test-results
+          path: load-test-results.json
+
+      - name: Stop services
+        run: docker-compose down
+
+  # =============================================================================
+  # DEPLOY TO STAGING
+  # =============================================================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [integration-tests, build]
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker images
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY_PREFIX: crypto-platform
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          services=("telegram-bot" "web-app" "trading-engine" "ml-analytics" "blockchain-service" "user-management" "data-pipeline" "community-platform")
+          for service in "${services[@]}"; do
+            docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_PREFIX-$service:$IMAGE_TAG ./services/$service
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY_PREFIX-$service:$IMAGE_TAG
+            docker tag $ECR_REGISTRY/$ECR_REPOSITORY_PREFIX-$service:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY_PREFIX-$service:staging
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY_PREFIX-$service:staging
+          done
+
+      - name: Deploy to ECS Staging
+        run: |
+          services=("telegram-bot" "web-app" "trading-engine" "ml-analytics" "blockchain-service" "user-management" "data-pipeline" "community-platform")
+          for service in "${services[@]}"; do
+            aws ecs update-service --cluster crypto-platform-staging --service $service --force-new-deployment
+          done
+
+      - name: Wait for deployment
+        run: |
+          services=("telegram-bot" "web-app" "trading-engine" "ml-analytics" "blockchain-service" "user-management" "data-pipeline" "community-platform")
+          for service in "${services[@]}"; do
+            aws ecs wait services-stable --cluster crypto-platform-staging --services $service
+          done
+
+  # =============================================================================
+  # DEPLOY TO PRODUCTION
+  # =============================================================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [e2e-tests, load-tests]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker images
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY_PREFIX: crypto-platform
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          services=("telegram-bot" "web-app" "trading-engine" "ml-analytics" "blockchain-service" "user-management" "data-pipeline" "community-platform")
+          for service in "${services[@]}"; do
+            docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_PREFIX-$service:$IMAGE_TAG ./services/$service
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY_PREFIX-$service:$IMAGE_TAG
+            docker tag $ECR_REGISTRY/$ECR_REPOSITORY_PREFIX-$service:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY_PREFIX-$service:latest
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY_PREFIX-$service:latest
+          done
+
+      - name: Deploy to ECS Production
+        run: |
+          services=("telegram-bot" "web-app" "trading-engine" "ml-analytics" "blockchain-service" "user-management" "data-pipeline" "community-platform")
+          for service in "${services[@]}"; do
+            aws ecs update-service --cluster crypto-platform-production --service $service --force-new-deployment
+          done
+
+      - name: Wait for deployment
+        run: |
+          services=("telegram-bot" "web-app" "trading-engine" "ml-analytics" "blockchain-service" "user-management" "data-pipeline" "community-platform")
+          for service in "${services[@]}"; do
+            aws ecs wait services-stable --cluster crypto-platform-production --services $service
+          done
+
+      - name: Run post-deployment tests
+        run: |
+          # Health checks
+          curl -f https://api.yourplatform.com/health
+          curl -f https://yourplatform.com/api/health
+          
+          # Smoke tests
+          npm run test:smoke
+
+      - name: Notify deployment success
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: '🚀 Production deployment successful!'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # =============================================================================
+  # CLEANUP
+  # =============================================================================
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: always()
+    steps:
+      - name: Clean up old Docker images
+        run: docker system prune -af

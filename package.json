@@ -1,0 +1,121 @@
+{
+  "name": "enterprise-crypto-platform",
+  "version": "1.0.0",
+  "description": "Enterprise-grade multi-chain cryptocurrency trading platform",
+  "main": "index.js",
+  "private": true,
+  "workspaces": [
+    "services/*",
+    "shared/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:telegram-bot\" \"npm run dev:web-app\" \"npm run dev:trading-engine\"",
+    "dev:telegram-bot": "cd services/telegram-bot && npm run dev",
+    "dev:web-app": "cd services/web-app && npm run dev",
+    "dev:trading-engine": "cd services/trading-engine && npm run dev",
+    "dev:ml-analytics": "cd services/ml-analytics && npm run dev",
+    "dev:blockchain-service": "cd services/blockchain-service && npm run dev",
+    "dev:user-management": "cd services/user-management && npm run dev",
+    "dev:data-pipeline": "cd services/data-pipeline && npm run dev",
+    "dev:community-platform": "cd services/community-platform && npm run dev",
+    "build": "npm run build --workspaces",
+    "build:telegram-bot": "cd services/telegram-bot && npm run build",
+    "build:web-app": "cd services/web-app && npm run build",
+    "build:trading-engine": "cd services/trading-engine && npm run build",
+    "test": "npm run test --workspaces",
+    "test:coverage": "npm run test:coverage --workspaces",
+    "test:integration": "jest --config jest.integration.config.js",
+    "test:load": "artillery run tests/load/platform.yml",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "type-check": "tsc --noEmit",
+    "security:scan": "npm audit && snyk test",
+    "security:fix": "npm audit fix && snyk wizard",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "infra:init": "cd infrastructure/terraform && terraform init",
+    "infra:plan": "cd infrastructure/terraform && terraform plan",
+    "infra:apply": "cd infrastructure/terraform && terraform apply",
+    "infra:destroy": "cd infrastructure/terraform && terraform destroy",
+    "deploy": "npm run deploy:all",
+    "deploy:all": "concurrently \"npm run deploy:telegram-bot\" \"npm run deploy:web-app\" \"npm run deploy:trading-engine\"",
+    "deploy:telegram-bot": "cd services/telegram-bot && npm run deploy",
+    "deploy:web-app": "cd services/web-app && npm run deploy",
+    "deploy:trading-engine": "cd services/trading-engine && npm run deploy",
+    "db:migrate": "cd services/user-management && npm run db:migrate",
+    "db:seed": "cd services/user-management && npm run db:seed",
+    "db:reset": "cd services/user-management && npm run db:reset",
+    "prepare": "husky install",
+    "postinstall": "npm run prepare"
+  },
+  "keywords": [
+    "crypto",
+    "trading",
+    "telegram",
+    "bot",
+    "defi",
+    "blockchain",
+    "enterprise",
+    "microservices",
+    "aws",
+    "typescript"
+  ],
+  "author": "Enterprise Crypto Platform Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/enterprise-crypto-platform.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/enterprise-crypto-platform/issues"
+  },
+  "homepage": "https://github.com/your-org/enterprise-crypto-platform#readme",
+  "devDependencies": {
+    "@types/jest": "^29.5.8",
+    "@types/node": "^20.9.0",
+    "@typescript-eslint/eslint-plugin": "^6.12.0",
+    "@typescript-eslint/parser": "^6.12.0",
+    "artillery": "^2.0.3",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.54.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-airbnb-typescript": "^17.1.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-jest": "^27.6.0",
+    "eslint-plugin-prettier": "^5.0.1",
+    "eslint-plugin-security": "^1.7.1",
+    "husky": "^8.0.3",
+    "jest": "^29.7.0",
+    "lint-staged": "^15.1.0",
+    "prettier": "^3.1.0",
+    "snyk": "^1.1248.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged",
+      "pre-push": "npm run test && npm run security:scan"
+    }
+  }
+}

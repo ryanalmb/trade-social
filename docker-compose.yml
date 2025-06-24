@@ -1,0 +1,233 @@
+version: '3.8'
+
+services:
+  # Database Services
+  postgres:
+    image: postgres:15-alpine
+    container_name: crypto-platform-postgres
+    environment:
+      POSTGRES_DB: crypto_platform_dev
+      POSTGRES_USER: dev_user
+      POSTGRES_PASSWORD: dev_password
+      POSTGRES_MULTIPLE_DATABASES: user_management,trading_engine,community_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh
+    networks:
+      - crypto-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev_user -d crypto_platform_dev"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: crypto-platform-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass dev_password
+    volumes:
+      - redis_data:/data
+    networks:
+      - crypto-platform
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: crypto-platform-timescale
+    environment:
+      POSTGRES_DB: timeseries_dev
+      POSTGRES_USER: ts_user
+      POSTGRES_PASSWORD: ts_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    networks:
+      - crypto-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ts_user -d timeseries_dev"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Message Queue
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: crypto-platform-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+    networks:
+      - crypto-platform
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: crypto-platform-zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - crypto-platform
+
+  # Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: crypto-platform-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - crypto-platform
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: crypto-platform-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/docker/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - crypto-platform
+
+  # Development Tools
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: crypto-platform-mailhog
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - crypto-platform
+
+  # Application Services (Development)
+  telegram-bot:
+    build:
+      context: ./services/telegram-bot
+      dockerfile: Dockerfile.dev
+    container_name: crypto-platform-telegram-bot
+    ports:
+      - "3002:3000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://dev_user:dev_password@postgres:5432/user_management
+      REDIS_URL: redis://:dev_password@redis:6379
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+    volumes:
+      - ./services/telegram-bot:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - crypto-platform
+    restart: unless-stopped
+
+  web-app:
+    build:
+      context: ./services/web-app
+      dockerfile: Dockerfile.dev
+    container_name: crypto-platform-web-app
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://dev_user:dev_password@postgres:5432/crypto_platform_dev
+      REDIS_URL: redis://:dev_password@redis:6379
+      NEXTAUTH_SECRET: dev-secret-key
+      NEXTAUTH_URL: http://localhost:3000
+    volumes:
+      - ./services/web-app:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - crypto-platform
+    restart: unless-stopped
+
+  trading-engine:
+    build:
+      context: ./services/trading-engine
+      dockerfile: Dockerfile.dev
+    container_name: crypto-platform-trading-engine
+    ports:
+      - "3003:3000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://dev_user:dev_password@postgres:5432/trading_engine
+      REDIS_URL: redis://:dev_password@redis:6379
+      TIMESCALE_URL: postgresql://ts_user:ts_password@timescaledb:5432/timeseries_dev
+      KAFKA_BROKERS: kafka:9092
+    volumes:
+      - ./services/trading-engine:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+      - timescaledb
+      - kafka
+    networks:
+      - crypto-platform
+    restart: unless-stopped
+
+  blockchain-service:
+    build:
+      context: ./services/blockchain-service
+      dockerfile: Dockerfile.dev
+    container_name: crypto-platform-blockchain-service
+    ports:
+      - "3004:3000"
+    environment:
+      NODE_ENV: development
+      REDIS_URL: redis://:dev_password@redis:6379
+      ETHEREUM_RPC_URL: ${ETHEREUM_RPC_URL}
+      SOLANA_RPC_URL: ${SOLANA_RPC_URL}
+    volumes:
+      - ./services/blockchain-service:/app
+      - /app/node_modules
+    depends_on:
+      - redis
+    networks:
+      - crypto-platform
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  timescale_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  crypto-platform:
+    driver: bridge

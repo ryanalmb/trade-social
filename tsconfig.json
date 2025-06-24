@@ -1,0 +1,126 @@
+{
+  "compilerOptions": {
+    // Language and Environment
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "allowJs": true,
+    "checkJs": false,
+    "jsx": "preserve",
+    
+    // Emit
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": false,
+    "importHelpers": true,
+    "importsNotUsedAsValues": "remove",
+    "inlineSourceMap": false,
+    "inlineSources": false,
+    "mapRoot": "",
+    "newLine": "lf",
+    "noEmit": false,
+    "noEmitHelpers": false,
+    "noEmitOnError": true,
+    "outDir": "./dist",
+    "outFile": "",
+    "preserveConstEnums": false,
+    "preserveValueImports": false,
+    "removeComments": false,
+    "sourceMap": true,
+    "sourceRoot": "",
+    "stripInternal": false,
+    
+    // JavaScript Support
+    "allowUmdGlobalAccess": false,
+    "maxNodeModuleJsDepth": 0,
+    
+    // Editor Support
+    "disableSizeLimit": false,
+    "plugins": [],
+    
+    // Interop Constraints
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "preserveSymlinks": false,
+    
+    // Type Checking
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "alwaysStrict": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitAny": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noPropertyAccessFromIndexSignature": false,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "strict": true,
+    "strictBindCallApply": true,
+    "strictFunctionTypes": true,
+    "strictNullChecks": true,
+    "strictPropertyInitialization": true,
+    "useUnknownInCatchVariables": true,
+    
+    // Completeness
+    "skipDefaultLibCheck": false,
+    "skipLibCheck": true,
+    
+    // Advanced
+    "assumeChangesOnlyAffectDirectDependencies": false,
+    "charset": "utf8",
+    "keyofStringsOnly": false,
+    "noImplicitUseStrict": false,
+    "noStrictGenericChecks": false,
+    "suppressExcessPropertyErrors": false,
+    "suppressImplicitAnyIndexErrors": false,
+    "useDefineForClassFields": true,
+    
+    // Path Mapping
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/shared/*": ["./shared/*"],
+      "@/types/*": ["./shared/types/*"],
+      "@/utils/*": ["./shared/utils/*"],
+      "@/constants/*": ["./shared/constants/*"],
+      "@/schemas/*": ["./shared/schemas/*"]
+    },
+    "rootDirs": ["./src", "./shared"],
+    
+    // Resolution
+    "resolveJsonModule": true,
+    "typeRoots": ["./node_modules/@types", "./shared/types"],
+    "types": ["node", "jest"]
+  },
+  "include": [
+    "src/**/*",
+    "shared/**/*",
+    "services/**/*",
+    "tests/**/*",
+    "*.ts",
+    "*.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/__tests__/**",
+    ".next",
+    ".nuxt",
+    "public",
+    "static"
+  ],
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  }
+}
