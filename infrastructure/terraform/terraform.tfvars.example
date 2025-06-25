@@ -1,0 +1,99 @@
+# =============================================================================
+# TERRAFORM VARIABLES - DEVELOPMENT ENVIRONMENT
+# =============================================================================
+# Copy this file to terraform.tfvars and customize for your environment
+# =============================================================================
+
+# =============================================================================
+# BASIC CONFIGURATION
+# =============================================================================
+aws_region   = "us-east-1"
+environment  = "dev"
+project_name = "crypto-platform"
+
+# =============================================================================
+# DATABASE CONFIGURATION (COST-OPTIMIZED FOR DEVELOPMENT)
+# =============================================================================
+db_instance_class         = "db.t3.micro"    # Free tier eligible
+db_allocated_storage      = 20               # Minimum for free tier
+db_max_allocated_storage  = 100              # Auto-scaling limit
+db_username              = "crypto_admin"
+db_name                  = "crypto_platform"
+
+# =============================================================================
+# ELASTICACHE CONFIGURATION (COST-OPTIMIZED)
+# =============================================================================
+redis_node_type            = "cache.t3.micro"  # Smallest available
+redis_num_cache_nodes      = 1                 # Single node for dev
+redis_parameter_group_name = "default.redis7"
+redis_engine_version       = "7.0"
+
+# =============================================================================
+# ECS CONFIGURATION (COST-OPTIMIZED)
+# =============================================================================
+ecs_task_cpu       = 256   # 0.25 vCPU
+ecs_task_memory    = 512   # 512 MB
+ecs_desired_count  = 1     # Single instance for dev
+ecs_max_capacity   = 3     # Limited scaling for dev
+ecs_min_capacity   = 1     # Always at least 1 instance
+
+# =============================================================================
+# APPLICATION CONFIGURATION
+# =============================================================================
+app_port           = 8080
+health_check_path  = "/health"
+
+# =============================================================================
+# MONITORING CONFIGURATION (COST-OPTIMIZED)
+# =============================================================================
+enable_detailed_monitoring = false  # Disabled for cost savings
+log_retention_days         = 7      # Short retention for dev
+
+# =============================================================================
+# SECURITY CONFIGURATION (DEVELOPMENT SETTINGS)
+# =============================================================================
+enable_deletion_protection = false  # Disabled for easy cleanup
+backup_retention_period    = 7      # Minimum backup retention
+backup_window              = "03:00-04:00"
+maintenance_window          = "sun:04:00-sun:05:00"
+
+# =============================================================================
+# COST OPTIMIZATION SETTINGS
+# =============================================================================
+enable_nat_gateway    = true   # Required for private subnets
+single_nat_gateway    = true   # Use single NAT for cost savings
+enable_vpn_gateway    = false  # Not needed for development
+enable_flow_logs      = false  # Disabled for cost savings
+
+# =============================================================================
+# HIGH AVAILABILITY SETTINGS (DISABLED FOR DEV)
+# =============================================================================
+enable_multi_az              = false  # Single AZ for cost savings
+enable_encryption             = true   # Always enable encryption
+enable_performance_insights   = false  # Disabled for cost savings
+enable_enhanced_monitoring    = false  # Disabled for cost savings
+
+# =============================================================================
+# AUTO SCALING CONFIGURATION
+# =============================================================================
+auto_scaling_target_cpu    = 70   # Scale up at 70% CPU
+auto_scaling_target_memory = 80   # Scale up at 80% memory
+scale_up_cooldown         = 300  # 5 minutes
+scale_down_cooldown       = 300  # 5 minutes
+
+# =============================================================================
+# DOMAIN AND SSL (DISABLED FOR INITIAL SETUP)
+# =============================================================================
+domain_name          = ""     # Will be set later
+create_route53_zone  = false  # Will be enabled when domain is ready
+enable_ssl           = false  # Will be enabled when domain is ready
+
+# =============================================================================
+# ADDITIONAL TAGS
+# =============================================================================
+additional_tags = {
+  Owner       = "ryanalmb"
+  Purpose     = "Development"
+  CostCenter  = "Development"
+  AutoShutdown = "true"  # Tag for automated shutdown scripts
+}
